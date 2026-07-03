@@ -1,0 +1,24 @@
+{
+  "name": "gailexa-web",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@azure/msal-browser": "^3.30.0",
+    "@microsoft/agents-activity": "^1.6.1",
+    "@microsoft/agents-copilotstudio-client": "^1.6.1",
+    "dompurify": "^3.2.4",
+    "marked": "^15.0.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.2.0"
+  }
+}
