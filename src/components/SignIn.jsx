@@ -32,7 +32,7 @@ export default function SignIn({ onSignIn, error, missingConfig }) {
           Sign in with Microsoft
         </button>
 
-        <p className="signin__foot">Powered by Microsoft Copilot Studio</p>
+        <p className="signin__foot">Developed by BIS</p>
       </div>
     </div>
   )

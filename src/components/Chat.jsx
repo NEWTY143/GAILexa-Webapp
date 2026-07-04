@@ -207,7 +207,7 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
             </button>
           </form>
           <p className="composer__hint">
-            GAILexa can make mistakes — verify important information.
+            GAILexa can make mistakes — verify important information. | Developed by BIS Department 2026
           </p>
         </div>
       </footer>
