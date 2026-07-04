@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import FlameOrb from './FlameOrb.jsx'
+import { useSpeechInput } from '../useSpeechInput.js'
+import { useSpeechOutput } from '../useSpeechOutput.js'
 
 marked.setOptions({ breaks: true })
 
@@ -16,6 +18,45 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
   const busy = status === 'thinking' || status === 'connecting'
+
+  // Voice language: 'auto' | 'en-IN' | 'hi-IN'
+  // AUTO uses the hi-IN recognizer, which handles mixed Hindi-English
+  // (Hinglish) speech — the browser cannot listen in two languages at once.
+  const LANG_MODES = ['auto', 'en-IN', 'hi-IN']
+  const LANG_LABEL = { auto: 'AUTO', 'en-IN': 'EN', 'hi-IN': 'हिं' }
+  const [voiceLang, setVoiceLang] = useState(() => {
+    const saved = localStorage.getItem('gailexa-voice-lang')
+    return LANG_MODES.includes(saved) ? saved : 'auto'
+  })
+  const isHindi = voiceLang === 'hi-IN'
+  const effectiveLang = voiceLang === 'en-IN' ? 'en-IN' : 'hi-IN'
+
+  function toggleLang() {
+    const next = LANG_MODES[(LANG_MODES.indexOf(voiceLang) + 1) % LANG_MODES.length]
+    setVoiceLang(next)
+    localStorage.setItem('gailexa-voice-lang', next)
+  }
+
+  const transcriptRef = useRef('')
+  const { supported: voiceSupported, listening, elapsed, toggle: toggleVoice } = useSpeechInput({
+    lang: effectiveLang,
+    maxSeconds: 30,
+    onTranscript: (text) => {
+      transcriptRef.current = text
+      setDraft(text)
+    },
+    onEnd: () => {
+      // Auto-send: whatever was heard goes straight to GAILexa
+      const text = transcriptRef.current.trim()
+      transcriptRef.current = ''
+      if (text) {
+        setDraft('')
+        onSend(text)
+      }
+    },
+  })
+
+  const { supported: ttsSupported, speakingId, toggleSpeak } = useSpeechOutput()
 
   useEffect(() => {
     const el = scrollRef.current
@@ -72,7 +113,16 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
           )}
 
           {messages.map((m) => (
-            <MessageRow key={m.id} message={m} onQuickReply={submit} disabled={busy} isLastBot={m === lastBot} />
+            <MessageRow
+              key={m.id}
+              message={m}
+              onQuickReply={submit}
+              disabled={busy}
+              isLastBot={m === lastBot}
+              ttsSupported={ttsSupported}
+              speaking={speakingId === m.id}
+              onToggleSpeak={() => toggleSpeak(m.id, m.text)}
+            />
           ))}
 
           {status === 'thinking' && (
@@ -99,10 +149,52 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
               className="composer__input"
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
-              placeholder={busy ? 'GAILexa is responding…' : 'Ask GAILexa anything…'}
+              placeholder={
+                listening
+                  ? isHindi
+                    ? `सुन रहा हूँ… रुकते ही भेज दूँगा (${30 - elapsed}s)`
+                    : `Listening… sends automatically when you pause (${30 - elapsed}s)`
+                  : busy
+                    ? 'GAILexa is responding…'
+                    : 'Ask GAILexa anything…'
+              }
               disabled={status === 'connecting'}
               autoFocus
             />
+            {voiceSupported && (
+              <>
+                <button
+                  type="button"
+                  className="composer__lang"
+                  onClick={toggleLang}
+                  disabled={listening}
+                  aria-label={`Voice language: ${LANG_LABEL[voiceLang]}. Tap to change.`}
+                  title={
+                    voiceLang === 'auto'
+                      ? 'Voice: Auto (Hindi + English) — tap for English only'
+                      : voiceLang === 'en-IN'
+                        ? 'Voice: English — tap for हिंदी'
+                        : 'Voice: हिंदी — tap for Auto'
+                  }
+                >
+                  {LANG_LABEL[voiceLang]}
+                </button>
+                <button
+                  type="button"
+                className={`composer__mic${listening ? ' composer__mic--on' : ''}`}
+                onClick={toggleVoice}
+                disabled={busy}
+                aria-label={listening ? 'Stop and send' : 'Ask with your voice (auto-sends)'}
+                title={listening ? 'Stop and send' : 'Ask with your voice (auto-sends)'}
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="9" y="2" width="6" height="12" rx="3" />
+                  <path d="M5 10a7 7 0 0 0 14 0" />
+                  <path d="M12 17v4" />
+                </svg>
+                </button>
+              </>
+            )}
             <button
               type="submit"
               className="composer__send"
@@ -123,7 +215,7 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
   )
 }
 
-function MessageRow({ message, onQuickReply, disabled, isLastBot }) {
+function MessageRow({ message, onQuickReply, disabled, isLastBot, ttsSupported, speaking, onToggleSpeak }) {
   if (message.role === 'user') {
     return (
       <div className="row row--user">
@@ -155,7 +247,31 @@ function MessageRow({ message, onQuickReply, disabled, isLastBot }) {
             ))}
           </div>
         )}
-        <time className="bubble__time">{timeFmt.format(message.at)}</time>
+        <div className="bubble__foot">
+          {ttsSupported && message.text && (
+            <button
+              type="button"
+              className={`voice-note${speaking ? ' voice-note--playing' : ''}`}
+              onClick={onToggleSpeak}
+              aria-label={speaking ? 'Stop voice note' : 'Play as voice note'}
+              title={speaking ? 'Stop' : 'Listen to this answer'}
+            >
+              {speaking ? (
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              ) : (
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
+                  <path d="M8 5.5v13l11-6.5z" />
+                </svg>
+              )}
+              <span className="voice-note__bars" aria-hidden="true">
+                <i /><i /><i /><i />
+              </span>
+            </button>
+          )}
+          <time className="bubble__time">{timeFmt.format(message.at)}</time>
+        </div>
       </div>
     </div>
   )

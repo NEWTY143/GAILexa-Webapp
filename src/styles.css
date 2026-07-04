@@ -1,20 +1,22 @@
 /* ---------------------------------------------------------------------------
    GAILexa — design tokens
-   Grounded in GAIL's identity: deep pipeline navy + the burner-flame gradient.
+   GAIL corporate identity: navy ink + the tricolor (yellow · green · blue)
+   from GAIL India Limited branding.
 --------------------------------------------------------------------------- */
 :root {
-  --ink: #0a1f33;          /* deep gas-pipeline navy */
-  --ink-soft: #16324d;
-  --surface: #f3f6f9;      /* LNG frost */
+  --ink: #14365c;          /* GAIL deep navy */
+  --ink-soft: #1e4a7a;
+  --surface: #f4f7f9;      /* light neutral */
   --card: #ffffff;
   --line: #dde5ec;
   --muted: #5c6b7a;
-  --gas-blue: #1266b1;     /* GAIL blue — user side */
-  --gas-blue-deep: #0d4f8b;
-  --flame-a: #ffb300;      /* amber */
-  --flame-b: #ff7a1a;      /* mid flame */
-  --flame-c: #e8442e;      /* burner red */
-  --flame-grad: linear-gradient(135deg, var(--flame-c) 0%, var(--flame-b) 55%, var(--flame-a) 100%);
+  --gas-blue: #1b75bb;     /* GAIL blue — user side */
+  --gas-blue-deep: #14568c;
+  --flame-a: #f5d22b;      /* GAIL yellow */
+  --flame-b: #8cc63e;      /* GAIL green */
+  --flame-c: #3fa9dc;      /* GAIL sky blue */
+  --error-red: #d64545;
+  --flame-grad: linear-gradient(135deg, var(--flame-a) 0%, var(--flame-b) 50%, var(--flame-c) 100%);
   --radius-lg: 18px;
   --radius-md: 12px;
   --shadow: 0 2px 8px rgba(10, 31, 51, 0.08), 0 12px 32px rgba(10, 31, 51, 0.06);
@@ -43,12 +45,12 @@ body {
   justify-content: center;
   border-radius: 50%;
   background: var(--flame-grad);
-  box-shadow: 0 2px 10px rgba(232, 68, 46, 0.35);
+  box-shadow: 0 2px 10px rgba(140, 198, 62, 0.45);
 }
 .flame-orb--flicker { animation: flicker 1.4s ease-in-out infinite; }
 @keyframes flicker {
-  0%, 100% { box-shadow: 0 2px 10px rgba(232, 68, 46, 0.35); transform: scale(1); }
-  50%      { box-shadow: 0 2px 20px rgba(255, 122, 26, 0.55); transform: scale(1.05); }
+  0%, 100% { box-shadow: 0 2px 10px rgba(140, 198, 62, 0.45); transform: scale(1); }
+  50%      { box-shadow: 0 2px 20px rgba(63, 169, 220, 0.6); transform: scale(1.05); }
 }
 
 .flame-rule {
@@ -113,7 +115,7 @@ body {
   inset: 0;
   background:
     repeating-linear-gradient(115deg, transparent 0 140px, rgba(255, 255, 255, 0.05) 140px 142px),
-    radial-gradient(1200px 600px at 85% -10%, rgba(18, 102, 177, 0.35), transparent 60%);
+    radial-gradient(1200px 600px at 85% -10%, rgba(63, 169, 220, 0.35), transparent 60%);
 }
 .signin__card {
   position: relative;
@@ -180,7 +182,7 @@ body {
 .chat__status--ready::before { background: #1a9e5c; }
 .chat__status--thinking::before,
 .chat__status--connecting::before { background: var(--flame-b); }
-.chat__status--error::before { background: var(--flame-c); }
+.chat__status--error::before { background: var(--error-red); }
 
 .chat__user { display: flex; align-items: center; gap: 0.75rem; }
 .chat__avatar {
@@ -195,7 +197,7 @@ body {
 
 .chat__scroll { flex: 1; overflow-y: auto; }
 .chat__column {
-  max-width: 780px;
+  max-width: 900px;
   margin: 0 auto;
   padding: 1.25rem 1rem;
 }
@@ -289,7 +291,7 @@ body {
   cursor: pointer;
   transition: background 0.12s ease, border-color 0.12s ease;
 }
-.chip:hover:not(:disabled) { background: #e8f1f9; border-color: var(--gas-blue); }
+.chip:hover:not(:disabled) { background: #f0f7e6; border-color: var(--flame-b); }
 .chip:disabled { opacity: 0.5; cursor: not-allowed; }
 
 /* --------------------------------- composer ----------------------------- */
@@ -300,23 +302,118 @@ body {
 }
 .composer {
   display: flex;
-  gap: 0.6rem;
+  align-items: center;
+  gap: 0.5rem;
   background: var(--card);
-  border: 1px solid var(--line);
+  border: 1.5px solid var(--line);
   border-radius: 999px;
-  padding: 0.4rem 0.4rem 0.4rem 1.15rem;
+  padding: 0.45rem 0.45rem 0.45rem 1.25rem;
   box-shadow: var(--shadow);
 }
 .composer:focus-within { border-color: var(--gas-blue); }
 .composer__input {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 0; /* lets the input shrink instead of pushing buttons off-screen */
   border: none;
   outline: none;
-  font: 400 0.95rem var(--font-body);
+  font: 400 1rem var(--font-body);
+  height: 46px;
   color: var(--ink);
   background: transparent;
 }
 .composer__input::placeholder { color: var(--muted); }
+/* voice note playback on bot bubbles */
+.bubble__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  margin-top: .25rem;
+}
+.bubble__foot .bubble__time { margin-top: 0; }
+.voice-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--gas-blue-deep);
+  border-radius: 999px;
+  padding: 4px 10px 4px 8px;
+  cursor: pointer;
+  transition: border-color .12s ease, background .12s ease;
+}
+.voice-note:hover { border-color: var(--gas-blue); background: #e8f1f9; }
+.voice-note--playing {
+  color: #fff;
+  border-color: transparent;
+  background: var(--flame-grad);
+}
+.voice-note__bars { display: inline-flex; align-items: flex-end; gap: 2px; height: 12px; }
+.voice-note__bars i {
+  width: 2.5px;
+  height: 5px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: .75;
+}
+.voice-note--playing .voice-note__bars i { animation: eq .9s ease-in-out infinite; }
+.voice-note--playing .voice-note__bars i:nth-child(2) { animation-delay: .15s; }
+.voice-note--playing .voice-note__bars i:nth-child(3) { animation-delay: .3s; }
+.voice-note--playing .voice-note__bars i:nth-child(4) { animation-delay: .45s; }
+@keyframes eq {
+  0%, 100% { height: 4px; }
+  50%      { height: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .voice-note--playing .voice-note__bars i { animation: none; }
+}
+
+.composer__lang {
+  flex: none;
+  height: 42px;
+  min-width: 46px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  color: var(--gas-blue-deep);
+  font: 600 0.78rem var(--font-body);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.composer__lang:hover:not(:disabled) { border-color: var(--gas-blue); background: #eef5fb; }
+.composer__lang:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.composer__mic {
+  flex: none;
+  width: 42px; height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--card);
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: color 0.12s ease, border-color 0.12s ease, transform 0.12s ease;
+}
+.composer__mic:hover:not(:disabled) { color: var(--gas-blue); border-color: var(--gas-blue); }
+.composer__mic:disabled { opacity: 0.4; cursor: not-allowed; }
+.composer__mic--on {
+  color: #fff;
+  border-color: transparent;
+  background: var(--flame-grad);
+  animation: mic-pulse 1.3s ease-in-out infinite;
+}
+@keyframes mic-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(140, 198, 62, 0.55); }
+  50%      { box-shadow: 0 0 0 9px rgba(140, 198, 62, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer__mic--on { animation: none; }
+}
+
 .composer__send {
   flex: none;
   width: 42px; height: 42px;
@@ -346,8 +443,23 @@ body {
   .flame-orb--flicker, .dot { animation: none; }
 }
 @media (max-width: 560px) {
-  .bubble { max-width: 88%; }
-  .chat__header { padding: 0.65rem 0.9rem; }
-  .btn--ghost { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+  .bubble { max-width: 88%; font-size: 0.92rem; }
+  .chat__header { padding: 0.6rem 0.8rem; }
+  .chat__title { font-size: 1.02rem; }
+  .chat__avatar { width: 32px; height: 32px; font-size: 0.72rem; }
+  .btn--ghost { padding: 0.38rem 0.6rem; font-size: 0.82rem; }
   .signin__card { padding: 2rem 1.5rem; }
+
+  /* composer: keep everything on one comfortable row */
+  .chat__column { padding: 1rem 0.7rem; }
+  .composer { gap: 0.35rem; padding: 0.35rem 0.35rem 0.35rem 0.9rem; }
+  .composer__input { font-size: 0.92rem; height: 40px; }
+  .composer__lang { height: 38px; min-width: 40px; padding: 0 8px; font-size: 0.72rem; }
+  .composer__mic, .composer__send { width: 38px; height: 38px; }
+  .composer__mic svg, .composer__send svg { width: 16px; height: 16px; }
+  .composer__hint { font-size: 0.6rem; }
+}
+@media (max-width: 380px) {
+  .composer { padding-left: 0.7rem; }
+  .composer__lang { min-width: 36px; padding: 0 6px; }
 }
