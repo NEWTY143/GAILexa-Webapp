@@ -7,12 +7,12 @@ import { useEffect, useRef, useState } from 'react'
  * Usage:
  *   const { supported, listening, toggle } = useSpeechInput({
  *     lang: 'en-IN',
- *     maxSeconds: 30,
+ *     maxSeconds: 10,
  *     onTranscript: (text, isFinal) => ...,
  *     onEnd: () => ...,          // fires when listening stops (pause, cap, or tap)
  *   })
  */
-export function useSpeechInput({ lang = 'en-IN', maxSeconds = 30, onTranscript, onEnd }) {
+export function useSpeechInput({ lang = 'en-IN', maxSeconds = 10, onTranscript, onEnd }) {
   const [listening, setListening] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const recognitionRef = useRef(null)

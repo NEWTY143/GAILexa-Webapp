@@ -80,3 +80,94 @@ Browser ──(token + connection string)──► Copilot Studio (Power Platfor
 | 401/403 after sign-in | The signed-in user may not have access to the agent, or the permission is missing. |
 | "Could not reach Copilot Studio" | Check `VITE_DIRECT_CONNECT_URL` matches the Channels → Web app connection string exactly. |
 | Popup blocked | Allow popups for the site (sign-in uses a popup window). |
+
+## Multilingual voice (v1.3.0)
+
+GAILexa understands and speaks eight languages: English, Hindi, Hinglish,
+Bengali, Marathi, Telugu, Gujarati and Tamil.
+
+### How a spoken turn flows
+
+1. **Recognise** — Azure AI Speech transcribes the microphone and detects the
+   language (two detection passes, because Azure allows four candidates each).
+2. **Translate to English** — the transcript is translated so Copilot Studio
+   always receives English. The agent, its instructions, its knowledge base and
+   the citation system are unchanged.
+3. **Answer** — Copilot Studio replies in English; the chat displays English,
+   with the person's own words shown beneath their message.
+4. **Translate back and speak** — the answer is translated into the language
+   the person used and read aloud in that language's female neural voice.
+
+| Language | Locale | Voice |
+| --- | --- | --- |
+| English | en-IN | Neerja |
+| Hindi / Hinglish | hi-IN | Swara |
+| Bengali | bn-IN | Tanishaa |
+| Marathi | mr-IN | Aarohi |
+| Telugu | te-IN | Shruti |
+| Gujarati | gu-IN | Dhwani |
+| Tamil | ta-IN | Pallavi |
+
+### Server configuration
+
+The Azure key never reaches the browser. Set it on the Windows service:
+
+```
+"C:\Program Files\nssm\nssm.exe" set GAILexaVoice AppEnvironmentExtra ^
+  AZURE_SPEECH_KEY=<KEY 1 from the Azure resource> ^
+  AZURE_SPEECH_REGION=centralindia ^
+  HF_HUB_OFFLINE=1
+"C:\Program Files\nssm\nssm.exe" restart GAILexaVoice
+```
+
+Two endpoints are added to the backend:
+
+- `POST /speech/token` — issues a 10-minute Speech token for the browser SDK
+- `POST /translate` — proxies Azure Translator so the key stays server-side
+
+Check with `curl http://127.0.0.1:8000/health` — `azure_speech` should be `true`.
+
+### Turning it off
+
+Set `VITE_AZURE_SPEECH_ENABLED=false` and rebuild: voice falls back to the
+previous Whisper + edge-tts path (English and Hindi only). Whisper remains
+installed on the server, so the fallback needs no extra work.
+
+### Network
+
+Azure AI Speech runs in the **browser**, so user PCs need outbound HTTPS and
+WebSocket access to `*.stt.speech.microsoft.com`, `*.tts.speech.microsoft.com`
+and `*.api.cognitive.microsoft.com` for the Central India region. The server
+itself only needs `api.cognitive.microsofttranslator.com` for translation.
+
+### Deploying the multilingual version to Render (testing)
+
+The same code runs on Render and on the air-gapped GAIL server — the Whisper
+model source is detected automatically (downloaded on Render, sideloaded on the
+GAIL server), so no code changes are needed between the two.
+
+**Backend service (`gailexa-whisper`) → Environment:**
+
+| Key | Value |
+| --- | --- |
+| `AZURE_SPEECH_KEY` | KEY 1 from the Azure AI resource (secret) |
+| `AZURE_SPEECH_REGION` | `centralindia` |
+| `ALLOWED_ORIGINS` | the frontend URL, e.g. `https://gailexa-web-vmyi.onrender.com` |
+| `WHISPER_MODEL` | `tiny` |
+
+**Frontend service (`gailexa-web`) → Environment:**
+
+| Key | Value |
+| --- | --- |
+| `VITE_WHISPER_URL` | the backend URL, e.g. `https://gailexa-whisper-vmyi.onrender.com` |
+| `VITE_AZURE_SPEECH_ENABLED` | `true` |
+| `VITE_AZURE_SPEECH_REGION` | `centralindia` |
+| `VITE_APP_CLIENT_ID`, `VITE_TENANT_ID`, `VITE_DIRECT_CONNECT_URL` | as before |
+
+Then verify:
+
+```
+curl https://<backend>.onrender.com/health
+```
+
+`azure_speech` should be `true` and `model_source` should be `downloaded`.

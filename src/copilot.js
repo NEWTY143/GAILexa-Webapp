@@ -48,4 +48,19 @@ export class GailexaSession {
       onActivity(reply)
     }
   }
+
+  /**
+   * Sends a message and returns the reply text WITHOUT surfacing it in the
+   * chat UI. Used for behind-the-scenes requests like "summarize your
+   * previous answer for voice playback".
+   */
+  async askHidden(text) {
+    let out = ''
+    await this.send(text, (activity) => {
+      if (activity?.type === 'message' && activity.text) {
+        out += (out ? '\n' : '') + activity.text
+      }
+    })
+    return out.trim()
+  }
 }

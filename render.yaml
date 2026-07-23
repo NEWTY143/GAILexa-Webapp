@@ -1,17 +1,61 @@
 services:
+  # ---------------------------------------------------------------------------
+  # Frontend — static React site
+  # ---------------------------------------------------------------------------
   - type: web
     name: gailexa-web
     runtime: static
     buildCommand: npm install && npm run build
     staticPublishPath: dist
     envVars:
+      # Microsoft Entra ID app registration
       - key: VITE_APP_CLIENT_ID
         sync: false
       - key: VITE_TENANT_ID
         sync: false
+
+      # Copilot Studio -> Channels -> Web app connection string
       - key: VITE_DIRECT_CONNECT_URL
         sync: false
+
+      # Base URL of the voice backend below, e.g.
+      #   https://gailexa-whisper-vmyi.onrender.com
+      - key: VITE_WHISPER_URL
+        sync: false
+
+      # Multilingual voice through Azure AI Speech + Translator.
+      # "true" enables eight languages; "false" falls back to the older
+      # Whisper + edge-tts path (English and Hindi only).
+      - key: VITE_AZURE_SPEECH_ENABLED
+        value: "true"
+      - key: VITE_AZURE_SPEECH_REGION
+        value: centralindia
     routes:
       - type: rewrite
         source: /*
         destination: /index.html
+
+  # ---------------------------------------------------------------------------
+  # Voice backend — Whisper transcription, edge-tts, Azure token + translation
+  # ---------------------------------------------------------------------------
+  - type: web
+    name: gailexa-whisper
+    runtime: docker
+    rootDir: server
+    plan: free
+    envVars:
+      - key: WHISPER_MODEL
+        value: tiny
+
+      # Azure AI Speech key — set this in the Render dashboard, never in code.
+      # The browser never sees it: it receives short-lived tokens from
+      # /speech/token, and translation is proxied through /translate.
+      - key: AZURE_SPEECH_KEY
+        sync: false
+      - key: AZURE_SPEECH_REGION
+        value: centralindia
+
+      # Sites permitted to call this service (comma-separated).
+      # Add the frontend's Render URL here.
+      - key: ALLOWED_ORIGINS
+        sync: false

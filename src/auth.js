@@ -12,6 +12,23 @@ export function getConnectionSettings() {
   })
 }
 
+/**
+ * Remove MSAL's "interaction in progress" flags. A sign-in that was
+ * interrupted (popup closed, page reloaded mid-login) leaves these behind
+ * and blocks every future attempt with `interaction_in_progress`.
+ */
+function clearStaleInteraction() {
+  try {
+    for (const store of [sessionStorage, localStorage]) {
+      for (const key of Object.keys(store)) {
+        if (key.includes('interaction.status')) store.removeItem(key)
+      }
+    }
+  } catch {
+    /* storage unavailable — nothing to clear */
+  }
+}
+
 async function getMsal() {
   if (!msalInstance) {
     msalInstance = new PublicClientApplication({
@@ -25,6 +42,14 @@ async function getMsal() {
       },
     })
     await msalInstance.initialize()
+    // Completes a sign-in that returned via redirect (no-op otherwise).
+    // Also clears MSAL's in-progress state after a successful round trip.
+    try {
+      await msalInstance.handleRedirectPromise()
+    } catch (e) {
+      console.warn('Redirect handling:', e)
+      clearStaleInteraction()
+    }
   }
   return msalInstance
 }
@@ -41,20 +66,29 @@ export async function getAccount() {
   return accounts.length > 0 ? accounts[0] : null
 }
 
-/** Interactive sign-in via popup. Returns the account. */
+/**
+ * Interactive sign-in via full-page redirect (reliable on mobile, where
+ * popups are often blocked). The page navigates to Microsoft's login and
+ * returns here; the account is then picked up by getAccount() on load.
+ */
 export async function signIn() {
   const msal = await getMsal()
-  const result = await msal.loginPopup({
+  clearStaleInteraction() // never let a stuck flag block a fresh attempt
+  await msal.loginRedirect({
     scopes: getScopes(),
     prompt: 'select_account',
   })
-  return result.account
+  return null // unreachable in practice — the page navigates away
 }
 
-/** Acquire an access token for Copilot Studio (silent first, popup fallback). */
+/** Acquire an access token for Copilot Studio (silent first, redirect fallback). */
 export async function acquireToken() {
   const msal = await getMsal()
-  const account = (await getAccount()) ?? (await signIn())
+  const account = await getAccount()
+  if (!account) {
+    await signIn()
+    return null
+  }
   try {
     const result = await msal.acquireTokenSilent({
       scopes: getScopes(),
@@ -62,13 +96,15 @@ export async function acquireToken() {
     })
     return result.accessToken
   } catch {
-    const result = await msal.acquireTokenPopup({ scopes: getScopes(), account })
-    return result.accessToken
+    clearStaleInteraction()
+    await msal.acquireTokenRedirect({ scopes: getScopes(), account })
+    return null // page navigates away
   }
 }
 
 export async function signOut() {
   const msal = await getMsal()
   const account = await getAccount()
-  await msal.logoutPopup({ account }).catch(() => {})
+  clearStaleInteraction()
+  await msal.logoutRedirect({ account }).catch(() => {})
 }

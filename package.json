@@ -14,6 +14,7 @@
     "@microsoft/agents-copilotstudio-client": "^1.6.1",
     "dompurify": "^3.2.4",
     "marked": "^15.0.7",
+    "microsoft-cognitiveservices-speech-sdk": "^1.41.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

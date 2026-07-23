@@ -1,4 +1,5 @@
 import FlameOrb from './FlameOrb.jsx'
+import { APP_VERSION } from '../config.js'
 
 export default function SignIn({ onSignIn, error, missingConfig }) {
   const configOk = missingConfig.length === 0
@@ -32,7 +33,7 @@ export default function SignIn({ onSignIn, error, missingConfig }) {
           Sign in with Microsoft
         </button>
 
-        <p className="signin__foot">Developed by BIS</p>
+        <p className="signin__foot">Developed by BIS · v{APP_VERSION}</p>
       </div>
     </div>
   )
