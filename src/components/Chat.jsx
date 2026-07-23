@@ -7,6 +7,7 @@ import { useWhisperInput } from '../useWhisperInput.js'
 import { useSpeechOutput } from '../useSpeechOutput.js'
 import { useAzureVoiceInput } from '../useAzureVoiceInput.js'
 import { LANGUAGE_NAMES } from '../azureSpeech.js'
+import TalkMode from './TalkMode.jsx'
 import { appConfig, APP_VERSION } from '../config.js'
 
 marked.setOptions({ breaks: true })
@@ -113,7 +114,7 @@ function renderMarkdown(text, citations) {
 
 const timeFmt = new Intl.DateTimeFormat('en-IN', { hour: '2-digit', minute: '2-digit' })
 
-export default function Chat({ account, messages, status, error, onSend, onSignOut, getSpeechText, voiceLocale, onVoiceLocaleChange }) {
+export default function Chat({ account, messages, status, error, onSend, onSignOut, getSpeechText, voiceLocale, onVoiceLocaleChange, onAskForTalk }) {
   const [draft, setDraft] = useState('')
   const scrollRef = useRef(null)
   const inputRef = useRef(null)
@@ -131,10 +132,13 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
   // Language picker: 'auto' lets Azure detect; a specific locale forces it
   // (more accurate when the person knows which language they'll speak).
   const [langMode, setLangMode] = useState('auto')
+  const [talkOpen, setTalkOpen] = useState(false)
+  const cancelledSpeakRef = useRef(false)
 
   // --- Azure voice input (8 languages, translated to English for Copilot) --
   const azureVoice = useAzureVoiceInput({
     forcedLocale: langMode === 'auto' ? null : langMode,
+    maxSeconds: 20,
     onResult: ({ original, english, locale }) => {
       onVoiceLocaleChange?.(locale)
       setDraft(english)
@@ -204,10 +208,18 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
       toggleSpeak(message.id, message.text, voiceLocale) // same id → stop
       return
     }
-    if (preparingId) return
+    // Tapping again while a summary is being prepared cancels it, so the
+    // person is never stuck waiting for audio they no longer want.
+    if (preparingId) {
+      cancelledSpeakRef.current = true
+      setPreparingId(null)
+      return
+    }
+    cancelledSpeakRef.current = false
     try {
       setPreparingId(message.id)
       const text = getSpeechText ? await getSpeechText(message) : message.text
+      if (cancelledSpeakRef.current) return
       // GAILexa answers in English; it is translated into the language the
       // person used before being read aloud.
       toggleSpeak(message.id, text, voiceLocale)
@@ -395,6 +407,22 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
                 </button>
               </>
             )}
+            {azureOn && voiceSupported && (
+              <button
+                type="button"
+                className="composer__talk"
+                onClick={() => setTalkOpen(true)}
+                aria-label="Talk to GAILexa"
+                title="Talk to GAILexa — hands-free voice conversation"
+              >
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 11a9 9 0 0 1 18 0" />
+                  <rect x="2" y="11" width="5" height="8" rx="2" />
+                  <rect x="17" y="11" width="5" height="8" rx="2" />
+                  <path d="M21 19a3 3 0 0 1-3 3h-3" />
+                </svg>
+              </button>
+            )}
             <button
               type="submit"
               className="composer__send"
@@ -411,6 +439,14 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
           </p>
         </div>
       </footer>
+
+      {talkOpen && (
+        <TalkMode
+          locale={langMode}
+          onAsk={onAskForTalk}
+          onClose={() => setTalkOpen(false)}
+        />
+      )}
     </div>
   )
 }
@@ -458,11 +494,10 @@ function MessageRow({ message, onQuickReply, disabled, isLastBot, ttsSupported, 
               type="button"
               className={`voice-note${speaking ? ' voice-note--playing' : ''}${preparing ? ' voice-note--loading' : ''}`}
               onClick={onToggleSpeak}
-              disabled={preparing}
-              aria-label={preparing ? 'Preparing summary…' : speaking ? 'Stop voice note' : 'Play as voice note'}
-              title={preparing ? 'Preparing a short summary…' : speaking ? 'Stop' : 'Listen (long answers are summarized)'}
+              aria-label={preparing ? 'Stop — preparing summary' : speaking ? 'Stop voice note' : 'Play as voice note'}
+              title={preparing ? 'Preparing a short summary — tap to cancel' : speaking ? 'Stop' : 'Listen (long answers are summarized)'}
             >
-              {speaking ? (
+              {(speaking || preparing) ? (
                 <svg viewBox="0 0 24 24" width="13" height="13" fill="currentColor">
                   <rect x="6" y="6" width="12" height="12" rx="2" />
                 </svg>

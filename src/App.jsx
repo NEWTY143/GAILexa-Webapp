@@ -221,6 +221,50 @@ export default function App() {
     }
   }
 
+  /**
+   * One question from the hands-free voice screen.
+   *
+   * The turn still goes through the same Copilot Studio conversation and is
+   * recorded in the chat, so the history is there when the person returns to
+   * the written view. What comes back is the SHORT version — a long answer is
+   * summarised first, because it has to be listened to rather than read.
+   *
+   * @param   {string} englishText  the question, already translated to English
+   * @param   {string} locale       the language the person spoke
+   * @returns {Promise<string>}     the answer in English, ready to be spoken
+   */
+  async function askForTalk(englishText, locale) {
+    const trimmed = (englishText || '').trim()
+    if (!trimmed) return ''
+    if (locale) setVoiceLocale(locale)
+
+    setMessages((prev) => [
+      ...prev,
+      { id: nextId(), role: 'user', text: trimmed, locale: locale || null, at: new Date() },
+    ])
+    setStatus('thinking')
+
+    const before = lastBotRef.current
+    try {
+      await drainSummaryJobs()
+      await sessionRef.current.send(trimmed, (activity) => handleActivity(activity))
+      setStatus('ready')
+
+      const reply = lastBotRef.current
+      if (!reply || reply === before) return ''
+
+      // Spoken answers must be short — reuse the same summariser the play
+      // button uses, so nothing new is invented and nothing is repeated.
+      const spoken = await getSpeechText(reply)
+      return (spoken || reply.text || '').trim()
+    } catch (e) {
+      console.error(e)
+      setError(describeError(e))
+      setStatus('ready')
+      return ''
+    }
+  }
+
   if (booting) return <div className="boot" />
 
   if (!account) {
@@ -244,6 +288,7 @@ export default function App() {
       getSpeechText={getSpeechText}
       voiceLocale={voiceLocale}
       onVoiceLocaleChange={setVoiceLocale}
+      onAskForTalk={askForTalk}
     />
   )
 }

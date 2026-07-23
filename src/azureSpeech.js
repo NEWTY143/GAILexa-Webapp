@@ -176,67 +176,156 @@ export async function fromEnglish(text, targetLocale) {
 }
 
 // --- Speech to text --------------------------------------------------------
+
 /**
- * Recognise one utterance from the microphone.
+ * Ask for microphone permission explicitly before handing control to the SDK.
  *
- * @param {object} opts
- * @param {string} [opts.locale]  force a single language; omit for auto-detect
+ * Mobile browsers only grant microphone access in response to a user gesture,
+ * and they refuse silently if the SDK opens the device on its own. Requesting
+ * the stream here — and releasing it immediately — makes the prompt appear at
+ * the moment the person taps, which is what mobile requires.
+ */
+export async function ensureMicPermission() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    throw new Error('This browser does not support microphone access.')
+  }
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+  stream.getTracks().forEach((t) => t.stop())
+}
+
+/**
+ * Recognise speech from the microphone.
+ *
+ * Continuous recognition is used so that longer sentences are not cut off in
+ * the middle: fragments are collected until the person stops speaking or the
+ * time limit is reached, then joined together.
+ *
+ * @param {object}   opts
+ * @param {string}   [opts.locale]       force one language; omit to auto-detect
+ * @param {number}   [opts.maxSeconds]   hard limit on the recording (default 20)
+ * @param {number}   [opts.silenceMs]    stop after this much silence (default 1800)
+ * @param {function} [opts.onPartial]    called with interim text as it arrives
+ * @param {object}   [opts.abortRef]     set .current = true to stop early
  * @returns {Promise<{ text: string, locale: string }>}
  */
-export function recognise({ locale } = {}) {
+export function recognise({
+  locale,
+  maxSeconds = 20,
+  silenceMs = 1800,
+  onPartial,
+  abortRef,
+} = {}) {
   return new Promise(async (resolve, reject) => {
-    let recogniser = null
+    let rec = null
+    let finished = false
+    let capTimer = null
+    let silenceTimer = null
+    const pieces = []
+    let detected = locale || null
+
+    const cleanup = () => {
+      clearTimeout(capTimer)
+      clearTimeout(silenceTimer)
+      if (rec) {
+        try { rec.stopContinuousRecognitionAsync(() => { try { rec.close() } catch {} }, () => {}) }
+        catch { try { rec.close() } catch {} }
+        rec = null
+      }
+    }
+
+    const finish = () => {
+      if (finished) return
+      finished = true
+      cleanup()
+      resolve({
+        text: pieces.join(' ').replace(/\s+/g, ' ').trim(),
+        locale: normaliseLocale(detected || 'en-IN'),
+      })
+    }
+
+    const armSilence = () => {
+      clearTimeout(silenceTimer)
+      silenceTimer = setTimeout(() => { if (pieces.length) finish() }, silenceMs)
+    }
+
     try {
-      const runPass = (langs) =>
-        new Promise(async (res, rej) => {
-          const cfg = await speechConfig()
-          const audio = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
-          let rec
-          if (langs.length === 1) {
-            cfg.speechRecognitionLanguage = langs[0]
-            rec = new SpeechSDK.SpeechRecognizer(cfg, audio)
-          } else {
-            const detect = SpeechSDK.AutoDetectSourceLanguageConfig.fromLanguages(langs)
-            rec = SpeechSDK.SpeechRecognizer.FromConfig(cfg, detect, audio)
-          }
-          recogniser = rec
-          rec.recognizeOnceAsync(
-            (result) => {
-              let detected = langs.length === 1 ? langs[0] : null
-              try {
-                detected =
-                  SpeechSDK.AutoDetectSourceLanguageResult.fromResult(result)?.language || detected
-              } catch { /* single-language pass */ }
-              rec.close()
-              recogniser = null
-              res({ result, locale: detected })
-            },
-            (err) => { rec.close(); recogniser = null; rej(new Error(err)) }
-          )
-        })
+      await ensureMicPermission()
 
-      const passes = locale ? [[locale]] : [DETECT_GROUP_A, DETECT_GROUP_B]
-      let text = ''
-      let detectedLocale = locale || 'en-IN'
+      const cfg = await speechConfig()
+      // Give people a moment to start speaking, and to pause mid-sentence.
+      cfg.setProperty(
+        SpeechSDK.PropertyId.SpeechServiceConnection_InitialSilenceTimeoutMs,
+        String(Math.min(maxSeconds * 1000, 10000))
+      )
+      cfg.setProperty(
+        SpeechSDK.PropertyId.SpeechServiceConnection_EndSilenceTimeoutMs,
+        String(silenceMs)
+      )
 
-      for (const langs of passes) {
-        const { result, locale: got } = await runPass(langs)
-        if (result.reason === SpeechSDK.ResultReason.RecognizedSpeech && result.text?.trim()) {
-          text = result.text.trim()
-          detectedLocale = normaliseLocale(got)
-          break
-        }
-        if (result.reason === SpeechSDK.ResultReason.Canceled) {
-          const details = SpeechSDK.CancellationDetails.fromResult(result)
-          if (/token|auth|forbidden|401|403/i.test(details.errorDetails || '')) invalidateToken()
-          throw new Error(details.errorDetails || 'Speech recognition was cancelled')
-        }
-        // No match on group A → fall through and try the regional group
+      const audio = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput()
+      if (locale) {
+        cfg.speechRecognitionLanguage = locale
+        rec = new SpeechSDK.SpeechRecognizer(cfg, audio)
+      } else {
+        // Azure permits four candidate languages at a time; the most common
+        // ones are offered here and the rest can be chosen manually.
+        const detectCfg = SpeechSDK.AutoDetectSourceLanguageConfig.fromLanguages(DETECT_GROUP_A)
+        rec = SpeechSDK.SpeechRecognizer.FromConfig(cfg, detectCfg, audio)
       }
 
-      resolve({ text, locale: detectedLocale })
+      rec.recognizing = (_s, e) => {
+        if (e.result?.text && onPartial) {
+          onPartial([...pieces, e.result.text].join(' ').trim())
+        }
+        armSilence()
+      }
+
+      rec.recognized = (_s, e) => {
+        if (e.result?.reason === SpeechSDK.ResultReason.RecognizedSpeech && e.result.text?.trim()) {
+          pieces.push(e.result.text.trim())
+          try {
+            const got = SpeechSDK.AutoDetectSourceLanguageResult.fromResult(e.result)?.language
+            if (got) detected = got
+          } catch { /* single-language mode */ }
+          onPartial?.(pieces.join(' ').trim())
+          armSilence()
+        }
+      }
+
+      rec.canceled = (_s, e) => {
+        if (/token|auth|401|403|forbidden/i.test(e.errorDetails || '')) invalidateToken()
+        if (pieces.length) return finish()
+        if (finished) return
+        finished = true
+        cleanup()
+        reject(new Error(e.errorDetails || 'Speech recognition was cancelled'))
+      }
+
+      rec.sessionStopped = () => finish()
+
+      rec.startContinuousRecognitionAsync(
+        () => {
+          capTimer = setTimeout(finish, maxSeconds * 1000)
+          armSilence()
+          // Allow the caller to stop us early (a Stop button, or leaving the screen)
+          if (abortRef) {
+            const poll = setInterval(() => {
+              if (finished) return clearInterval(poll)
+              if (abortRef.current) { clearInterval(poll); finish() }
+            }, 200)
+          }
+        },
+        (err) => {
+          if (finished) return
+          finished = true
+          cleanup()
+          reject(new Error(err))
+        }
+      )
     } catch (e) {
-      try { recogniser?.close() } catch { /* ignore */ }
+      if (finished) return
+      finished = true
+      cleanup()
       reject(e)
     }
   })

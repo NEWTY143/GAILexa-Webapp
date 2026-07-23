@@ -190,3 +190,29 @@ key you are willing to rotate. For production, leave `VITE_AZURE_SPEECH_KEY`
 empty and set `AZURE_SPEECH_KEY` on the backend instead — the app then
 fetches short-lived tokens from `/speech/token` and the key never leaves the
 server.
+
+## Talk mode (v1.4.0)
+
+A second way to use GAILexa: tap the headset button beside the microphone and
+a full-screen voice conversation opens. Nothing is written on screen — it is
+meant to feel like a phone call.
+
+Each turn runs: **listen (15 s) → translate to English → ask the agent →
+translate the answer back → speak it.** While the agent is thinking, a short
+holding phrase is spoken in the person's own language so the line is never
+silent, and long answers are summarised before being read out. The exchange is
+still recorded in the chat, so the history is there on return.
+
+The circle shows what is happening — blue ripples while listening, a yellow
+spin while thinking, a green pulse while answering. Tapping it, or the Stop
+button, halts whatever is in progress.
+
+### Other voice changes in this version
+
+- Microphone recording extended from 10 to **20 seconds**, using continuous
+  recognition so long sentences are no longer cut off mid-way.
+- The play button can now be tapped to **cancel** while a summary is being
+  prepared, not only once playback has started.
+- Microphone permission is now requested explicitly before the Speech SDK
+  opens the device, which is what **mobile browsers** require — this fixes the
+  case where the button appeared active on a phone but no audio was captured.

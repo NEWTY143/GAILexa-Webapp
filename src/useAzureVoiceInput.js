@@ -11,11 +11,12 @@ import { recognise, toEnglish, normaliseLocale } from './azureSpeech.js'
  *
  * phase: 'idle' | 'listening' | 'processing'
  */
-export function useAzureVoiceInput({ forcedLocale, onResult, onError } = {}) {
+export function useAzureVoiceInput({ forcedLocale, maxSeconds = 20, onResult, onError } = {}) {
   const [phase, setPhase] = useState('idle')
   const [elapsed, setElapsed] = useState(0)
   const timerRef = useRef(null)
   const cancelledRef = useRef(false)
+  const abortRef = useRef({ current: false })
 
   const supported =
     typeof navigator !== 'undefined' && Boolean(navigator.mediaDevices?.getUserMedia)
@@ -30,21 +31,25 @@ export function useAzureVoiceInput({ forcedLocale, onResult, onError } = {}) {
 
   const toggle = useCallback(async () => {
     if (phase === 'listening') {
-      // Azure ends the utterance itself; this just abandons the result.
-      cancelledRef.current = true
+      // Stop recording now and keep whatever has been recognised so far.
+      abortRef.current.current = true
       stopTimer()
-      setPhase('idle')
       return
     }
     if (phase === 'processing') return
 
     cancelledRef.current = false
+    abortRef.current.current = false
     setPhase('listening')
     setElapsed(0)
     timerRef.current = setInterval(() => setElapsed((s) => s + 1), 1000)
 
     try {
-      const { text, locale } = await recognise({ locale: forcedLocale || undefined })
+      const { text, locale } = await recognise({
+        locale: forcedLocale || undefined,
+        maxSeconds,
+        abortRef: abortRef.current,
+      })
       stopTimer()
       if (cancelledRef.current) { setPhase('idle'); return }
       if (!text) { setPhase('idle'); return }
@@ -62,7 +67,7 @@ export function useAzureVoiceInput({ forcedLocale, onResult, onError } = {}) {
       console.error('[GAILexa] voice input failed:', e)
       onError?.(e)
     }
-  }, [phase, forcedLocale, onResult, onError])
+  }, [phase, forcedLocale, maxSeconds, onResult, onError])
 
   return {
     supported,
