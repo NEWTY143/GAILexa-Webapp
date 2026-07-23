@@ -5,7 +5,7 @@
 // environment settings on Render). See .env.example and README.md.
 // ---------------------------------------------------------------------------
 
-export const APP_VERSION = '1.3.0'
+export const APP_VERSION = '1.3.1'
 
 export const appConfig = {
   // Entra ID (Azure AD) app registration — REQUIRED because the agent uses
@@ -32,6 +32,13 @@ export const appConfig = {
   azureSpeechEnabled:
     String(import.meta.env.VITE_AZURE_SPEECH_ENABLED || '').toLowerCase() === 'true',
   azureSpeechRegion: import.meta.env.VITE_AZURE_SPEECH_REGION || 'centralindia',
+
+  // Direct mode (TESTING ONLY): when a key is supplied here, the browser
+  // talks to Azure directly and no backend is needed. The key is compiled
+  // into the JavaScript bundle and is readable by anyone who opens the
+  // browser's developer tools — so leave this EMPTY in production and let
+  // the backend issue short-lived tokens instead.
+  azureSpeechKey: import.meta.env.VITE_AZURE_SPEECH_KEY || '',
 }
 
 export function validateConfig() {

@@ -46,7 +46,7 @@ const MALE_BLOCKLIST = [
 ]
 
 export function useSpeechOutput({ endpoint = '' } = {}) {
-  const azureOn = Boolean(appConfig.azureSpeechEnabled)
+  const azureOn = Boolean(appConfig.azureSpeechEnabled || appConfig.azureSpeechKey)
   const [speakingId, setSpeakingId] = useState(null)
   const audioRef = useRef(null)          // neural playback element
   const abortRef = useRef(null)          // cancels an in-flight /tts fetch

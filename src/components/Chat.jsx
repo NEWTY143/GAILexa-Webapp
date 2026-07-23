@@ -122,7 +122,7 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
   // Whisper mode: on when the transcription service URL is configured.
   // Whisper detects Hindi/English automatically, so no language toggle.
   const whisperOn = Boolean(appConfig.whisperUrl)
-  const azureOn = Boolean(appConfig.azureSpeechEnabled)
+  const azureOn = Boolean(appConfig.azureSpeechEnabled || appConfig.azureSpeechKey)
 
   // Auto-send timer, shared by every voice path
   const pendingSendRef = useRef(null)

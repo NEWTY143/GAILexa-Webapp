@@ -171,3 +171,22 @@ curl https://<backend>.onrender.com/health
 ```
 
 `azure_speech` should be `true` and `model_source` should be `downloaded`.
+
+### Direct mode — testing without a backend (v1.3.1)
+
+For a quick test deployment, the browser can call Azure directly and no
+backend service is needed at all. Set on the static site:
+
+| Key | Value |
+| --- | --- |
+| `VITE_AZURE_SPEECH_KEY` | KEY 1 from the Azure resource |
+| `VITE_AZURE_SPEECH_REGION` | `centralindia` |
+
+`VITE_WHISPER_URL` is then unused for voice.
+
+**This key is compiled into the JavaScript bundle and can be read by anyone
+who opens the browser's developer tools.** Use it only for testing with a
+key you are willing to rotate. For production, leave `VITE_AZURE_SPEECH_KEY`
+empty and set `AZURE_SPEECH_KEY` on the backend instead — the app then
+fetches short-lived tokens from `/speech/token` and the key never leaves the
+server.

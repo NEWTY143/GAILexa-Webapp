@@ -90,7 +90,16 @@ function invalidateToken() {
   tokenCache = { token: null, region: null, expires: 0 }
 }
 
+/** True when a key is configured in the frontend (testing mode, no backend). */
+const directMode = () => Boolean(appConfig.azureSpeechKey)
+
 async function speechConfig() {
+  if (directMode()) {
+    return SpeechSDK.SpeechConfig.fromSubscription(
+      appConfig.azureSpeechKey,
+      appConfig.azureSpeechRegion
+    )
+  }
   const { token, region } = await getSpeechToken()
   return SpeechSDK.SpeechConfig.fromAuthorizationToken(token, region)
 }
@@ -102,7 +111,32 @@ async function speechConfig() {
  * Returns the translated text, or the original if anything fails — voice
  * features must never break the conversation.
  */
+const TRANSLATOR_ENDPOINT = 'https://api.cognitive.microsofttranslator.com'
+
 async function translate(text, to, from) {
+  // Direct mode — call Azure Translator straight from the browser.
+  if (directMode()) {
+    let params = `?api-version=3.0&to=${to}`
+    if (from) params += `&from=${from}`
+    const res = await fetch(`${TRANSLATOR_ENDPOINT}/translate${params}`, {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': appConfig.azureSpeechKey,
+        'Ocp-Apim-Subscription-Region': appConfig.azureSpeechRegion,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify([{ text }]),
+    })
+    if (!res.ok) throw new Error(`Translation failed (${res.status})`)
+    const data = await res.json()
+    const first = data?.[0] || {}
+    return {
+      text: first.translations?.[0]?.text || '',
+      detected: first.detectedLanguage?.language || null,
+    }
+  }
+
+  // Proxied mode — the backend holds the key.
   const body = { text, to }
   if (from) body.from = from
   const res = await fetch(`${api()}/translate`, {
