@@ -216,3 +216,23 @@ button, halts whatever is in progress.
 - Microphone permission is now requested explicitly before the Speech SDK
   opens the device, which is what **mobile browsers** require — this fixes the
   case where the button appeared active on a phone but no audio was captured.
+
+### Playback and language controls (v1.5.0)
+
+- **Stop bar.** Whenever an answer is being prepared or read aloud, a small bar
+  appears above the message box showing what is happening, with a Stop button.
+  Playback can now be halted from anywhere on the page rather than only from
+  the button on the message itself.
+- **Language selector in talk mode.** The voice screen now has its own language
+  control in the top-left corner: auto-detect, or any of the eight languages
+  chosen directly. Choosing a language explicitly is more reliable than
+  detection in noisy surroundings, such as a plant or control room. Changing it
+  stops whatever is in progress and applies from the next question.
+
+### Help and contact (v1.5.1)
+
+A help button sits in the header, beside the user avatar. Clicking it opens a
+contact card anchored to the top right, carrying the GAIL tri-colour stripe and
+the developer's details — HVJ extension, mobile and email, each one tappable so
+a phone dials or the mail client opens directly. The card closes on an outside
+click or the Escape key.

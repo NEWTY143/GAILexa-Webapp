@@ -134,6 +134,28 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
   const [langMode, setLangMode] = useState('auto')
   const [talkOpen, setTalkOpen] = useState(false)
   const cancelledSpeakRef = useRef(false)
+  const [helpOpen, setHelpOpen] = useState(false)
+  const helpRef = useRef(null)
+
+  // Close the help card on an outside click or the Escape key
+  useEffect(() => {
+    if (!helpOpen) return
+    const onDown = (e) => { if (!helpRef.current?.contains(e.target)) setHelpOpen(false) }
+    const onKey = (e) => { if (e.key === 'Escape') setHelpOpen(false) }
+    document.addEventListener('mousedown', onDown)
+    document.addEventListener('keydown', onKey)
+    return () => {
+      document.removeEventListener('mousedown', onDown)
+      document.removeEventListener('keydown', onKey)
+    }
+  }, [helpOpen])
+
+  /** Stop playback from anywhere — used by the floating bar below the chat. */
+  function stopSpeakingNow() {
+    cancelledSpeakRef.current = true
+    setPreparingId(null)
+    if (speakingId) toggleSpeak(speakingId, '', voiceLocale)
+  }
 
   // --- Azure voice input (8 languages, translated to English for Copilot) --
   const azureVoice = useAzureVoiceInput({
@@ -268,6 +290,78 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
           </div>
         </div>
         <div className="chat__user">
+          <div className="help" ref={helpRef}>
+            <button
+              type="button"
+              className={`help__btn${helpOpen ? ' help__btn--on' : ''}`}
+              onClick={() => setHelpOpen((o) => !o)}
+              aria-expanded={helpOpen}
+              aria-label="Help and contact"
+              title="Help — contact the developer"
+            >
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2.1" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="9.5" />
+                <path d="M9.2 9a2.9 2.9 0 0 1 5.6 1c0 2-2.8 2.5-2.8 4" />
+                <circle cx="12" cy="17.4" r=".9" fill="currentColor" stroke="none" />
+              </svg>
+            </button>
+
+            {helpOpen && (
+              <div className="help__card" role="dialog" aria-label="Developer contact">
+                <div className="help__stripe" aria-hidden="true">
+                  <span /><span /><span />
+                </div>
+
+                <div className="help__head">
+                  <span className="help__avatar">PN</span>
+                  <div>
+                    <p className="help__name">Palli Newton Babu</p>
+                    <p className="help__role">Senior Officer (BIS) · Noida</p>
+                  </div>
+                </div>
+
+                <p className="help__lead">
+                  For any query or feedback about GAILexa, please get in touch.
+                </p>
+
+                <ul className="help__list">
+                  <li>
+                    <span className="help__ico" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2Z" />
+                      </svg>
+                    </span>
+                    <span className="help__label">HVJ</span>
+                    <a className="help__value" href="tel:86911318">869-11318</a>
+                  </li>
+                  <li>
+                    <span className="help__ico" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="6" y="2" width="12" height="20" rx="2.5" />
+                        <path d="M11 18.5h2" />
+                      </svg>
+                    </span>
+                    <span className="help__label">Mobile</span>
+                    <a className="help__value" href="tel:+917901257905">+91 79012 57905</a>
+                  </li>
+                  <li>
+                    <span className="help__ico" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="2.5" y="4.5" width="19" height="15" rx="2.5" />
+                        <path d="m3 7 9 6 9-6" />
+                      </svg>
+                    </span>
+                    <span className="help__label">Email</span>
+                    <a className="help__value" href="mailto:palli.18329@gail.co.in">palli.18329@gail.co.in</a>
+                  </li>
+                </ul>
+
+                <p className="help__foot">
+                  Developed by BIS Department · v{APP_VERSION}
+                </p>
+              </div>
+            )}
+          </div>
           <span className="chat__avatar" title={account?.username}>{initials}</span>
           <img
             className="chat__gail-logo"
@@ -318,6 +412,27 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
 
       <footer className="chat__composer">
         <div className="chat__column">
+          {(speakingId || preparingId) && (
+            <div className="speak-bar" role="status">
+              <span className="speak-bar__wave" aria-hidden="true">
+                <i /><i /><i /><i />
+              </span>
+              <span className="speak-bar__text">
+                {preparingId ? 'Preparing the voice note…' : 'GAILexa is speaking…'}
+              </span>
+              <button
+                type="button"
+                className="speak-bar__stop"
+                onClick={stopSpeakingNow}
+                aria-label="Stop speaking"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+                Stop
+              </button>
+            </div>
+          )}
           {azureOn && voiceSupported && (
             <div className="lang-bar" role="group" aria-label="Voice language">
               <span className="lang-bar__label">Voice</span>

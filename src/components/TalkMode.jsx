@@ -72,6 +72,11 @@ const pick = (map, locale) => {
  */
 export default function TalkMode({ locale = 'auto', onAsk, onClose }) {
   const [phase, setPhase] = useState('idle')   // idle | listening | thinking | speaking
+  // Language for this screen. 'auto' lets Azure detect it; choosing a specific
+  // language is more accurate and is the better option in a noisy plant or
+  // control room, where detection has less to work with.
+  const [choice, setChoice] = useState(locale === 'auto' ? 'auto' : normaliseLocale(locale))
+  const [pickerOpen, setPickerOpen] = useState(false)
   const [activeLocale, setActiveLocale] = useState(
     locale === 'auto' ? 'en-IN' : normaliseLocale(locale)
   )
@@ -108,7 +113,7 @@ export default function TalkMode({ locale = 'auto', onAsk, onClose }) {
       // --- listen ---------------------------------------------------------
       setPhase('listening')
       const { text, locale: heard } = await recognise({
-        locale: locale === 'auto' ? undefined : normaliseLocale(locale),
+        locale: choice === 'auto' ? undefined : normaliseLocale(choice),
         maxSeconds: 15,
         silenceMs: 1600,
         abortRef: abortRef.current,
@@ -165,7 +170,7 @@ export default function TalkMode({ locale = 'auto', onAsk, onClose }) {
     } finally {
       runningRef.current = false
     }
-  }, [locale, activeLocale, onAsk, say])
+  }, [choice, activeLocale, onAsk, say])
 
   const stopEverything = () => {
     abortRef.current.current = true
@@ -186,13 +191,73 @@ export default function TalkMode({ locale = 'auto', onAsk, onClose }) {
     onClose?.()
   }
 
-  const langLabel = detected ? LANGUAGE_NAMES[detected] || detected : 'Detecting…'
+  const chooseLanguage = (value) => {
+    setChoice(value)
+    setPickerOpen(false)
+    if (value !== 'auto') {
+      const loc = normaliseLocale(value)
+      setActiveLocale(loc)
+      setDetected(loc)
+    } else {
+      setDetected(null)
+    }
+    stopEverything()
+  }
+
+  const langLabel =
+    choice !== 'auto'
+      ? LANGUAGE_NAMES[choice] || choice
+      : detected
+        ? `${LANGUAGE_NAMES[detected] || detected} · detected`
+        : 'Auto-detect'
 
   return (
     <div className="talk" role="dialog" aria-modal="true" aria-label="Voice conversation">
       <button className="talk__close" onClick={handleClose} aria-label="Close voice conversation">
         ✕
       </button>
+
+      <div className="talk__langpick">
+        <button
+          className="talk__langbtn"
+          onClick={() => setPickerOpen((o) => !o)}
+          aria-expanded={pickerOpen}
+          aria-label="Choose language"
+        >
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round">
+            <circle cx="12" cy="12" r="9" />
+            <path d="M3 12h18M12 3a15 15 0 0 1 0 18a15 15 0 0 1 0-18" />
+          </svg>
+          {choice === 'auto' ? 'Auto' : LANGUAGE_NAMES[choice] || choice}
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <path d={pickerOpen ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'} />
+          </svg>
+        </button>
+
+        {pickerOpen && (
+          <div className="talk__langmenu" role="listbox">
+            <button
+              className={`talk__langopt${choice === 'auto' ? ' talk__langopt--on' : ''}`}
+              onClick={() => chooseLanguage('auto')}
+              role="option"
+              aria-selected={choice === 'auto'}
+            >
+              Auto-detect
+            </button>
+            {Object.entries(LANGUAGE_NAMES).map(([loc, name]) => (
+              <button
+                key={loc}
+                className={`talk__langopt${choice === loc ? ' talk__langopt--on' : ''}`}
+                onClick={() => chooseLanguage(loc)}
+                role="option"
+                aria-selected={choice === loc}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="talk__body">
         <button
