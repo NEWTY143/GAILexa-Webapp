@@ -5,7 +5,7 @@
 // environment settings on Render). See .env.example and README.md.
 // ---------------------------------------------------------------------------
 
-export const APP_VERSION = '1.5.1'
+export const APP_VERSION = '1.5.2'
 
 export const appConfig = {
   // Entra ID (Azure AD) app registration — REQUIRED because the agent uses

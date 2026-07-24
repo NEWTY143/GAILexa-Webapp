@@ -418,7 +418,7 @@ export default function Chat({ account, messages, status, error, onSend, onSignO
                 <i /><i /><i /><i />
               </span>
               <span className="speak-bar__text">
-                {preparingId ? 'Preparing the voice note…' : 'GAILexa is speaking…'}
+                {preparingId ? 'Preparing the voice note…' : 'Playing the voice note…'}
               </span>
               <button
                 type="button"

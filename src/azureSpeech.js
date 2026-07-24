@@ -333,33 +333,60 @@ export function recognise({
 
 // --- Text to speech --------------------------------------------------------
 let activeSynth = null
+let activePlayer = null
+let activeFinish = null   // resolves the in-flight speak() when stopped early
 
-/** Speak `text` in the voice matching `locale`. Resolves when playback ends. */
+/**
+ * Speak `text` in the voice matching `locale`.
+ *
+ * The promise resolves when the audio has finished PLAYING, not merely when
+ * synthesis completed — the SDK reports those as two different moments, and
+ * using the wrong one makes the interface believe playback has ended while
+ * the person is still listening.
+ *
+ * An explicit speaker destination is used so that playback can be interrupted
+ * part-way through; the default output offers no way to stop it.
+ */
 export function speak(text, locale) {
   return new Promise(async (resolve, reject) => {
     try {
       stopSpeaking()
       const cfg = await speechConfig()
       cfg.speechSynthesisVoiceName = voiceFor(locale)
-      const synth = new SpeechSDK.SpeechSynthesizer(cfg)
+
+      const player = new SpeechSDK.SpeakerAudioDestination()
+      const audioCfg = SpeechSDK.AudioConfig.fromSpeakerOutput(player)
+      const synth = new SpeechSDK.SpeechSynthesizer(cfg, audioCfg)
+      activePlayer = player
       activeSynth = synth
+
+      let settled = false
+      const finish = (fn, arg) => {
+        if (settled) return
+        settled = true
+        try { synth.close() } catch { /* already closed */ }
+        if (activeSynth === synth) activeSynth = null
+        if (activePlayer === player) activePlayer = null
+        if (activeFinish && settled) activeFinish = null
+        fn(arg)
+      }
+
+      // Fires when the speaker has actually finished playing the audio.
+      player.onAudioEnd = () => finish(resolve)
+      // Lets stopSpeaking() end this cleanly rather than leaving it pending.
+      activeFinish = () => finish(resolve)
+
       synth.speakTextAsync(
         text,
         (result) => {
-          const ok = result.reason === SpeechSDK.ResultReason.SynthesizingAudioCompleted
-          try { synth.close() } catch { /* ignore */ }
-          if (activeSynth === synth) activeSynth = null
-          if (ok) resolve()
-          else {
+          if (result.reason !== SpeechSDK.ResultReason.SynthesizingAudioCompleted) {
             if (/token|auth|401|403/i.test(result.errorDetails || '')) invalidateToken()
-            reject(new Error(result.errorDetails || 'Speech synthesis failed'))
+            finish(reject, new Error(result.errorDetails || 'Speech synthesis failed'))
           }
+          // On success we deliberately wait for onAudioEnd instead of
+          // resolving here, so the caller knows when playback truly ends.
         },
-        (err) => {
-          try { synth.close() } catch { /* ignore */ }
-          if (activeSynth === synth) activeSynth = null
-          reject(new Error(err))
-        }
+        (err) => finish(reject, new Error(err))
       )
     } catch (e) {
       reject(e)
@@ -367,9 +394,19 @@ export function speak(text, locale) {
   })
 }
 
+/** Stop playback immediately, part-way through if necessary. */
 export function stopSpeaking() {
+  const finishPending = activeFinish
+  activeFinish = null
+  if (activePlayer) {
+    try { activePlayer.pause() } catch { /* ignore */ }
+    try { activePlayer.close() } catch { /* ignore */ }
+    activePlayer = null
+  }
   if (activeSynth) {
     try { activeSynth.close() } catch { /* ignore */ }
     activeSynth = null
   }
+  // Release whoever is awaiting playback, so the interface returns to idle.
+  finishPending?.()
 }
